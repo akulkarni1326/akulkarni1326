@@ -1,0 +1,8 @@
+package com.otterproducts.edi.amazon.inbound.n850
+
+def tradingPartner amazonPartnerTP {
+
+	def init() {
+		displayName = "Amazon"
+	}
+}

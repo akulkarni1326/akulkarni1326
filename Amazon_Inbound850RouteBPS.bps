@@ -1,0 +1,84 @@
+#content/*bps 2 */
+package com.otterproducts.edi.amazon.inbound.n850;
+
+def bps Amazon_Inbound850RouteBPS implements com.extol.ebi.bps.lib.templates.InboundEdiRouteTemplate {
+
+	@ RouteParameter
+	public var Ruleset ruleset
+	@ RouteParameter
+	public var String v_PartnerName
+	@ RouteParameter
+	public var com.extol.ebi.bps2.lib.types.CloudEndpoint CloudEndpoint
+	@ RouteParameter
+	public var Ruleset CockpitRuleset
+	@ RouteParameter
+	public var String DocType
+	@ RouteParameter
+	public var String v_filename
+	@ RouteParameter
+	public var String v_CustomerID
+	@ RouteParameter
+	public var String v_OrderNumber
+
+	def execute(Route route, StorageNode context, StorageNode inputDataFragment) {
+		var StorageNode v_target
+		var StorageNode v_sourcecontext
+		var StorageNode v_targetcontext
+		var Date CurrentDateTime
+		var String v_date
+		var StorageNode v_insert
+		var StorageNode v_dbtxt
+
+		step {
+			new SetRouteFieldValues().execute(route)
+		} next : Failure
+		step {
+			new ExecuteTransformation().execute(inputDataFragment, v_target,
+				new com.cleo.b2bcloud.core.DefaultTransformationSettingsTS, ruleset, unset, context, v_targetcontext)
+		} next : Failure
+		step {
+			new com.cleo.cic.cockpit.core.inbound.inboundCockpitReferenceBPS().execute(inputDataFragment, context,
+				CockpitRuleset, "850", v_PartnerName, v_targetcontext)
+		} next : Failure
+		#
+		step {
+			new GetCurrentDate().execute(CurrentDateTime)
+		} next : Failure
+		#
+		step {
+			new ConvertDateToString().execute(v_date, CurrentDateTime, "yyyyMMddHHmmss")
+		} next : Failure
+		step {
+			new GetContextPointValue().execute(v_targetcontext, "env.var.User_Reference_1", v_OrderNumber)
+		} next : Failure
+		step {
+			new GetContextPointValue().execute(v_targetcontext, "env.var.User_Reference_2", v_date)
+		} next : Failure
+		step {
+			new GetContextPointValue().execute(v_targetcontext, "env.var.User_Reference_3", v_CustomerID)
+		} next : Failure
+		step {
+			new com.cleo.b2bcloud.core.adapters.WriteInboundFilesAD().execute(v_target, CloudEndpoint, v_filename,
+				DocType, v_date, "xml", v_PartnerName, v_CustomerID, v_OrderNumber, v_OrderNumber)
+		} next : Failure
+		step {
+			new ExecuteTransformation().execute(inputDataFragment, v_insert,
+				new com.cleo.b2bcloud.core.DefaultTransformationSettingsTS,
+				new com.xref.connection.Amazon_InsertLineNumberfromOrderRS, unset, context, v_dbtxt)
+		} next : Failure
+		step {
+			new com.xref.connection.InsertLinesAmazonDBA$Insert().execute_v2(v_insert)
+		} next : Failure
+		step {
+			new SetExitStatus().execute(true)
+		} end : end 
+		step Failure {
+			new com.cleo.cic.cockpit.core.inbound.inboundErrorCockpitBPS().execute(context, v_targetcontext,
+				v_PartnerName, inputDataFragment)
+		} next : end 
+		step {
+			new SetExitStatus().execute(false)
+		} end : end 
+	}
+
+}
